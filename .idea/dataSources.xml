@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
+    <data-source source="LOCAL" name="servers.db" uuid="41046a35-9722-43b5-a53a-9353690d46bf">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:C:\Users\Immor\IdeaProjects\server\databases\servers.db</jdbc-url>
+    </data-source>
+    <data-source source="LOCAL" name="message.db" uuid="1630dee2-54ad-4725-adf3-d80267ccd98d">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:C:\Users\Immor\IdeaProjects\server\databases\message.db</jdbc-url>
+    </data-source>
+    <data-source source="LOCAL" name="users.db" uuid="e8b054ee-767e-41f9-980e-ac7df5393f4b">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/databases/users.db</jdbc-url>
+    </data-source>
+  </component>
+</project>
