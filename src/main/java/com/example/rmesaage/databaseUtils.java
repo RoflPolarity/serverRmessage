@@ -1,5 +1,7 @@
 package com.example.rmesaage;
 import com.example.rmesaage.Chat.Message;
+
+import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.ArrayList;
@@ -319,6 +321,7 @@ public class databaseUtils {
                             pstmt.executeUpdate();
                         }
                         conn.close();
+                        System.out.println("Insert not need");
                     } catch (Exception e) {
                         System.err.println(e.getClass().getName() + ": " + e.getMessage());
                     }
@@ -352,6 +355,7 @@ public class databaseUtils {
                             pstmt.executeUpdate();
                         }
                         conn.close();
+                        System.out.println("Insert not need");
                     } catch (Exception e) {
                         System.err.println(e.getClass().getName() + ": " + e.getMessage());
                     }
@@ -391,6 +395,7 @@ public class databaseUtils {
                                     }
                                 }
                                 conn.close();
+                                System.out.println("Insert not need");
                             }catch (Exception e){
 
                             }
@@ -402,7 +407,7 @@ public class databaseUtils {
         }
         return false;
     }
-    static class User{
+    static class User implements Serializable {
         String username,password,type;
 
         public User(String username, String password, String type) {
@@ -435,7 +440,7 @@ public class databaseUtils {
             this.type = type;
         }
     }
-    static class Server{
+    static class Server implements Serializable{
         private String ServerName, ServerKey, ip;
 
         public Server(String serverName, String serverKey, String ip) {

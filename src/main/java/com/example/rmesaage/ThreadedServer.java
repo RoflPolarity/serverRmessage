@@ -30,7 +30,7 @@ public class ThreadedServer {
         PORT = Integer.parseInt(args[2]);
         PORTSERVER = Integer.parseInt(args[3]);
         THREAD_POOL_SIZE = Integer.parseInt(args[4]);
-        databaseUtils.registerServer(ServName,ServKey,getExternalIP()+":"+PORT+":"+PORT);
+        databaseUtils.registerServer(ServName,ServKey,getExternalIP()+":"+PORT+":"+PORTSERVER);
         Userexecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_POOL_SIZE-1);
         serverExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_POOL_SIZE-1);
         try {
@@ -45,8 +45,21 @@ public class ThreadedServer {
                 System.out.println("Connect");
                 ObjectOutputStream out = new ObjectOutputStream(regSocket.getOutputStream());
                 out.writeObject(new ServerMessage<>("Register",ServName,getExternalIP() + ":"+ PORT + ":" + PORTSERVER,ServKey));
+                out.flush();
                 ObjectInputStream in = new ObjectInputStream(regSocket.getInputStream());
-                System.out.println(((ServerMessage<?>)in.readObject()).getData());
+                System.out.println("Register = "+((ServerMessage<?>)in.readObject()).getData());
+
+                out.writeObject(new ServerMessage<>("SyncUsersDatabase",ServName,databaseUtils.getUsersDatabase(),ServKey));
+                out.flush();
+                System.out.println("SyncUsersDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
+
+                out.writeObject(new ServerMessage<>("SyncServersDatabase",ServName,databaseUtils.getServerDatabase(),ServKey));
+                out.flush();
+                System.out.println("SyncServersDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
+
+                out.writeObject(new ServerMessage<>("SyncSavedMessageDatabase",ServName,databaseUtils.getSavedMessageDatabase(),ServKey));
+                out.flush();
+                System.out.println("SyncSavedMessageDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
@@ -92,9 +105,9 @@ public class ThreadedServer {
                         Socket socket = userConnection.accept();
                         System.out.println((Userexecutor.getActiveCount()==Userexecutor.getMaximumPoolSize())+" redirect");
                         if (Userexecutor.getActiveCount()==Userexecutor.getMaximumPoolSize()){
-                            ArrayList<String> ServersIps = databaseUtils.getServerDatabase();
+                            ArrayList<com.example.rmesaage.databaseUtils.Server> ServersIps = databaseUtils.getServerDatabase();
                             for (int i = 0; i < ServersIps.size(); i++) {
-                                String[] servData = ServersIps.get(i).split(":");
+                                String[] servData = ServersIps.get(i).getIp().split(":");
                                 System.out.println(Arrays.toString(servData));
                                 try {
                                     Socket serverTrySocket = new Socket(servData[0], Integer.parseInt(servData[2]));
@@ -104,14 +117,14 @@ public class ThreadedServer {
                                     ObjectInputStream in = new ObjectInputStream(serverTrySocket.getInputStream());
                                     ServerMessage<Boolean> response = (ServerMessage<Boolean>) in.readObject();
                                     if (response.getData().equals(true)){
-                                        out.writeObject(new ServerMessage<>("SyncDatabase",ServName,databaseUtils.,ServKey));
                                         ObjectOutputStream outClient = new ObjectOutputStream(socket.getOutputStream());
                                         outClient.writeObject(new Response<>("Redirect",null,null,null,servData[0]+":"+servData[1],null));
                                         outClient.flush();
                                         outClient.close();
-                                        socket.close();
+                                        serverTrySocket.close();
                                         break;
                                     }
+                                    serverTrySocket.close();
                                 }catch (Exception ignored){}
                             }
                         }else {
@@ -159,7 +172,28 @@ public class ThreadedServer {
                 for (ClientHandler activeClient : activeClients) {
                     if (activeClient.getUsername().equals(recipient)) {
                         activeClient.sendMessage(sender, message);
-                        break;
+                        return;
+                    }
+                }
+                ArrayList<com.example.rmesaage.databaseUtils.Server> servers = databaseUtils.getServerDatabase();
+                for (int i = 0; i < servers.size(); i++) {
+                    String[] serverAdr = servers.get(i).getIp().split(":");
+                    try {
+                        Socket socket = new Socket(serverAdr[0], Integer.parseInt(serverAdr[2]));
+                        ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                        ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+                        out.writeObject(new ServerMessage<>("FindUser", ServName, recipient, ServKey));
+                        out.flush();
+                        if (((ServerMessage) in.readObject()).getData().equals(true)) {
+                            System.out.println("User find");
+                            out.writeObject(new ServerMessage<>("SendMessage", ServName, new Message(0, sender, message, null, recipient, null), ServKey));
+                            out.flush();
+                            out.close();
+                            return;
+                        }
+                        socket.close();
+                    } catch (IOException | ClassNotFoundException e) {
+                        System.out.println("No connect");
                     }
                 }
             }
@@ -281,14 +315,14 @@ public class ThreadedServer {
         private static ServerMessage<?> handleServerMessage(ServerMessage message) {
             databaseUtils databaseUtils = new databaseUtils();
             //Server Commands:
-            //Register,SyncDatabase,ApplyNewUser
+            //Register,SyncDatabases,ApplyNewUser,FindUser
             String command = message.getComma();
             String serverName = message.getServerName();
             switch (command) {
                 case "Register":
                     return new ServerMessage<>("RegisterResult", ServName, databaseUtils.registerServer(serverName, message.getKey(), (String)message.getData()), ServKey);
                 case "SyncUsersDatabase":
-                    return new ServerMessage<>("SyncUsersDatabaseResult", ServName, databaseUtils.getUsersDatabase(), ServKey);
+                    return new ServerMessage<>("SyncUsersDatabaseResult", ServName, databaseUtils.syncDatabases((ArrayList) message.getData()), ServKey);
                 case "ApplyNewUser":
                     if (Userexecutor.getActiveCount()<Userexecutor.getMaximumPoolSize()){
                         return new ServerMessage<>("ApplyNewUserResult", ServName, true, ServKey);
@@ -296,27 +330,52 @@ public class ThreadedServer {
                         return new ServerMessage<>("ApplyNewUserResult", ServName, false, ServKey);
                     }
                 case "SyncServersDatabase":
-                    return new ServerMessage<>("SyncServersDatabaseResult",ServName,databaseUtils.getServerDatabase(),ServKey);
+                    return new ServerMessage<>("SyncServersDatabaseResult",ServName,databaseUtils.syncDatabases((ArrayList) message.getData()),ServKey);
                 case "SyncSavedMessageDatabase":
-                    return new ServerMessage<>("SyncSavedMessageDatabaseResult",ServName,databaseUtils.getSavedMessageDatabase(),ServKey);
+                    return new ServerMessage<>("SyncSavedMessageDatabaseResult",ServName,databaseUtils.syncDatabases((ArrayList) message.getData()),ServKey);
+                case "FindUser":
+                            if (tryFindConnectedUser((String) message.getData())){
+                                return new ServerMessage<>("FindUserResult",ServName,true,ServKey);
+                            }else return new ServerMessage<>("FindUserResult",ServName,false,ServKey);
+                case "SendMessage":
+                    Message UserMessage = (Message)message.getData();
+                    synchronized (activeClientsLock){
+                        for (ClientHandler clientHandler: activeClients){
+                            if (clientHandler.getUsername().equals(UserMessage.getSendTo())){
+                                clientHandler.sendNewMessage(UserMessage.getMessageUser(),UserMessage.getSendTo(),(String)message.getData());
+                                return new ServerMessage<>("SendMessage",ServName,true,ServKey);
+                            }
+                        }
+                        return new ServerMessage<>("SendMessage",ServName,false,ServKey);
+                    }
+
             }
 
-            // Обработка команды от другого сервера
-            // В зависимости от команды, выполняйте необходимые действия,
-            // например, регистрируйте сервер, авторизуйтесь, передавайте активных клиентов и т. д.
             return null;
         }
 
         @Override
         public void run() {
         try {
-            out.writeObject(handleServerMessage((ServerMessage) in.readObject()));
-            in.close();
-            out.close();
-            socket.close();
+            while (true){
+                out.writeObject(handleServerMessage((ServerMessage) in.readObject()));
+            }
+
         }catch (Exception e){
 
         }
     }
     }
+    private static boolean tryFindConnectedUser(String recipient) {
+        synchronized (activeClientsLock) {
+            for (ClientHandler activeClient : activeClients) {
+                if (activeClient.getUsername().equals(recipient)) {
+                    System.out.println(activeClient.getUsername());
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 }
