@@ -215,8 +215,30 @@ public class ThreadedServer {
                 for (ClientHandler activeClient : activeClients) {
                     if (activeClient.getUsername().equals(recipient)) {
                         activeClient.sendMessage(sender, message);
-                        break;
+                        return;
                     }
+                }
+            }
+            ArrayList<com.example.rmesaage.databaseUtils.Server> servers = databaseUtils.getServerDatabase();
+            for (int i = 0; i < servers.size(); i++) {
+                String[] serverAdr = servers.get(i).getIp().split(":");
+                if (serverAdr.length==1 || servers.get(i).getServerName().equals(ServName) || servers.get(i).getServerKey().equals(ServKey)) continue;
+                try {
+                    Socket socket = new Socket(serverAdr[0], Integer.parseInt(serverAdr[2]));
+                    ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                    ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+                    out.writeObject(new ServerMessage<>("FindUser", ServName, recipient, ServKey));
+                    out.flush();
+                    if (((ServerMessage) in.readObject()).getData().equals(true)) {
+                        out.writeObject(new ServerMessage<>("SendMessageImage", ServName, new Message(0, sender, null, message, recipient, null), ServKey));
+                        out.flush();
+                        out.close();
+                        socket.close();
+                        return;
+                    }
+                    socket.close();
+                } catch (IOException | ClassNotFoundException e) {
+                    System.out.println("No connect");
                 }
             }
         }
@@ -353,9 +375,17 @@ public class ThreadedServer {
                         }
                     }
                         return new ServerMessage<>("SendMessageResult",ServName,false,ServKey);
-
+                case "SendMessageImage":
+                    Message mess = (Message)message.getData();
+                    synchronized (activeClientsLock) {
+                        for (ClientHandler clientHandler : activeClients) {
+                            if (clientHandler.getUsername().equals(mess.getSendTo())) {
+                                clientHandler.sendNewMessageImage(mess.getMessageUser(), mess.getSendTo(), mess.getBitMaps());
+                                return new ServerMessage<>("SendMessageResult", ServName, true, ServKey);
+                            }
+                        }
+                    }
             }
-
             return null;
         }
 
