@@ -321,7 +321,6 @@ public class databaseUtils {
                             pstmt.executeUpdate();
                         }
                         conn.close();
-                        System.out.println("Insert not need");
                     } catch (Exception e) {
                         System.err.println(e.getClass().getName() + ": " + e.getMessage());
                     }
@@ -355,7 +354,6 @@ public class databaseUtils {
                             pstmt.executeUpdate();
                         }
                         conn.close();
-                        System.out.println("Insert not need");
                     } catch (Exception e) {
                         System.err.println(e.getClass().getName() + ": " + e.getMessage());
                     }
@@ -395,7 +393,6 @@ public class databaseUtils {
                                     }
                                 }
                                 conn.close();
-                                System.out.println("Insert not need");
                             }catch (Exception e){
 
                             }

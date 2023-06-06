@@ -1,14 +1,12 @@
 package com.example.rmesaage;
 
 import com.example.rmesaage.Chat.Message;
-import org.w3c.dom.ls.LSOutput;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -29,7 +27,9 @@ public class ThreadedServer {
         ServKey = args[1];
         PORT = Integer.parseInt(args[2]);
         PORTSERVER = Integer.parseInt(args[3]);
-        THREAD_POOL_SIZE = Integer.parseInt(args[4]);
+        if (args.length!=4){
+            THREAD_POOL_SIZE = Integer.parseInt(args[4]);
+        }
         databaseUtils.registerServer(ServName,ServKey,getExternalIP()+":"+PORT+":"+PORTSERVER);
         Userexecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_POOL_SIZE-1);
         serverExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(THREAD_POOL_SIZE-1);
@@ -39,30 +39,41 @@ public class ThreadedServer {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        if (!getExternalIP().equals("80.254.123.76") || PORT!=2511 || PORTSERVER!=2510){
-            try {
-                Socket regSocket = new Socket("80.254.123.76",2510);
-                System.out.println("Connect");
-                ObjectOutputStream out = new ObjectOutputStream(regSocket.getOutputStream());
-                out.writeObject(new ServerMessage<>("Register",ServName,getExternalIP() + ":"+ PORT + ":" + PORTSERVER,ServKey));
-                out.flush();
-                ObjectInputStream in = new ObjectInputStream(regSocket.getInputStream());
-                System.out.println("Register = "+((ServerMessage<?>)in.readObject()).getData());
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if (!getExternalIP().equals("80.254.123.76") || PORT!=2511 || PORTSERVER!=2510){
+                    try {
+                        Socket regSocket = new Socket("80.254.123.76",2510);
+                        ObjectOutputStream out = new ObjectOutputStream(regSocket.getOutputStream());
+                        out.writeObject(new ServerMessage<>("Register",ServName,getExternalIP() + ":"+ PORT + ":" + PORTSERVER,ServKey));
+                        out.flush();
+                        ObjectInputStream in = new ObjectInputStream(regSocket.getInputStream());
+                        System.out.println("Register = "+((ServerMessage<?>)in.readObject()).getData());
 
-                out.writeObject(new ServerMessage<>("SyncUsersDatabase",ServName,databaseUtils.getUsersDatabase(),ServKey));
-                out.flush();
-                System.out.println("SyncUsersDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
+                        out.writeObject(new ServerMessage<>("SyncUsersDatabase",ServName,databaseUtils.getUsersDatabase(),ServKey));
+                        out.flush();
+                        System.out.println("SyncUsersDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
 
-                out.writeObject(new ServerMessage<>("SyncServersDatabase",ServName,databaseUtils.getServerDatabase(),ServKey));
-                out.flush();
-                System.out.println("SyncServersDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
+                        out.writeObject(new ServerMessage<>("SyncServersDatabase",ServName,databaseUtils.getServerDatabase(),ServKey));
+                        out.flush();
+                        System.out.println("SyncServersDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
 
-                out.writeObject(new ServerMessage<>("SyncSavedMessageDatabase",ServName,databaseUtils.getSavedMessageDatabase(),ServKey));
-                out.flush();
-                System.out.println("SyncSavedMessageDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
+                        out.writeObject(new ServerMessage<>("SyncSavedMessageDatabase",ServName,databaseUtils.getSavedMessageDatabase(),ServKey));
+                        out.flush();
+                        System.out.println("SyncSavedMessageDatabase = " + ((ServerMessage<?>)in.readObject()).getData());
+                        regSocket.close();
+                    } catch (IOException | ClassNotFoundException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
+        });
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
     public static String getExternalIP() {
@@ -96,19 +107,18 @@ public class ThreadedServer {
     }
     private static void userConnThreadStart() throws IOException {
         ServerSocket userConnection = new ServerSocket(PORT);
-        System.out.println("Сервер запущен");
+        System.out.println("Server started");
         userConnThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 while (true){
                     try {
                         Socket socket = userConnection.accept();
-                        System.out.println((Userexecutor.getActiveCount()==Userexecutor.getMaximumPoolSize())+" redirect");
                         if (Userexecutor.getActiveCount()==Userexecutor.getMaximumPoolSize()){
                             ArrayList<com.example.rmesaage.databaseUtils.Server> ServersIps = databaseUtils.getServerDatabase();
                             for (int i = 0; i < ServersIps.size(); i++) {
                                 String[] servData = ServersIps.get(i).getIp().split(":");
-                                System.out.println(Arrays.toString(servData));
+                                if (ServersIps.get(i).getServerName().equals(ServName) || ServersIps.get(i).getServerKey().equals(ServKey)) continue;
                                 try {
                                     Socket serverTrySocket = new Socket(servData[0], Integer.parseInt(servData[2]));
                                     ObjectOutputStream out = new ObjectOutputStream(serverTrySocket.getOutputStream());
@@ -175,9 +185,11 @@ public class ThreadedServer {
                         return;
                     }
                 }
+            }
                 ArrayList<com.example.rmesaage.databaseUtils.Server> servers = databaseUtils.getServerDatabase();
                 for (int i = 0; i < servers.size(); i++) {
                     String[] serverAdr = servers.get(i).getIp().split(":");
+                    if (serverAdr.length==1 || servers.get(i).getServerName().equals(ServName) || servers.get(i).getServerKey().equals(ServKey)) continue;
                     try {
                         Socket socket = new Socket(serverAdr[0], Integer.parseInt(serverAdr[2]));
                         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
@@ -185,10 +197,10 @@ public class ThreadedServer {
                         out.writeObject(new ServerMessage<>("FindUser", ServName, recipient, ServKey));
                         out.flush();
                         if (((ServerMessage) in.readObject()).getData().equals(true)) {
-                            System.out.println("User find");
                             out.writeObject(new ServerMessage<>("SendMessage", ServName, new Message(0, sender, message, null, recipient, null), ServKey));
                             out.flush();
                             out.close();
+                            socket.close();
                             return;
                         }
                         socket.close();
@@ -196,7 +208,6 @@ public class ThreadedServer {
                         System.out.println("No connect");
                     }
                 }
-            }
         }
 
         private void sendNewMessageImage(String sender, String recipient, ArrayList<byte[]> message) {
@@ -223,7 +234,6 @@ public class ThreadedServer {
             try {
                 out.writeObject(new Response<>("NewMessage", sender, null, username, message, "user"));
                 out.flush();
-                System.out.println("sended");
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -237,7 +247,6 @@ public class ThreadedServer {
                 }
                 case "Auth" -> {
                     boolean bool = utils.auth(request.getUsername(), request.getPassword());
-                    System.out.println(bool + "AUTH");
                     return new Response<>(bool);
                 }
                 case "SendMessage" -> {
@@ -256,7 +265,6 @@ public class ThreadedServer {
                 }
                 case "Sync" -> {
                     ArrayList<Message> res = utils.getChats(request.getUsername());
-                    System.out.println(true);
                     return new Response<>("Sync",res);
                 }
             }
@@ -271,7 +279,6 @@ public class ThreadedServer {
                         Response<?> request = (Response<?>) in.readObject();
                         if (request.getComma().equals("Exit")) break;
                         Response<?> response = parse(request);
-                        System.out.println(request.getComma());
                         out.writeObject(response);
                         out.flush();
                         username = request.getUsername();
@@ -299,11 +306,9 @@ public class ThreadedServer {
         }
     }
     static class ServerHandler implements Runnable {
-        private Socket socket;
         private ObjectInputStream in;
         private ObjectOutputStream out;
     public ServerHandler(Socket socket) {
-            this.socket = socket;
         try {
             this.in = new ObjectInputStream(socket.getInputStream());
             this.out = new ObjectOutputStream(socket.getOutputStream());
@@ -339,15 +344,15 @@ public class ThreadedServer {
                             }else return new ServerMessage<>("FindUserResult",ServName,false,ServKey);
                 case "SendMessage":
                     Message UserMessage = (Message)message.getData();
-                    synchronized (activeClientsLock){
-                        for (ClientHandler clientHandler: activeClients){
-                            if (clientHandler.getUsername().equals(UserMessage.getSendTo())){
-                                clientHandler.sendNewMessage(UserMessage.getMessageUser(),UserMessage.getSendTo(),(String)message.getData());
-                                return new ServerMessage<>("SendMessage",ServName,true,ServKey);
+                    synchronized (activeClientsLock) {
+                        for (ClientHandler clientHandler : activeClients) {
+                            if (clientHandler.getUsername().equals(UserMessage.getSendTo())) {
+                                clientHandler.sendNewMessage(UserMessage.getMessageUser(), UserMessage.getSendTo(), UserMessage.getText());
+                                return new ServerMessage<>("SendMessageResult", ServName, true, ServKey);
                             }
                         }
-                        return new ServerMessage<>("SendMessage",ServName,false,ServKey);
                     }
+                        return new ServerMessage<>("SendMessageResult",ServName,false,ServKey);
 
             }
 
@@ -358,11 +363,12 @@ public class ThreadedServer {
         public void run() {
         try {
             while (true){
-                out.writeObject(handleServerMessage((ServerMessage) in.readObject()));
+                ServerMessage message = (ServerMessage) in.readObject();
+                out.writeObject(handleServerMessage(message));
+                out.flush();
             }
 
-        }catch (Exception e){
-
+        }catch (Exception e) {
         }
     }
     }
@@ -370,7 +376,6 @@ public class ThreadedServer {
         synchronized (activeClientsLock) {
             for (ClientHandler activeClient : activeClients) {
                 if (activeClient.getUsername().equals(recipient)) {
-                    System.out.println(activeClient.getUsername());
                     return true;
                 }
             }
