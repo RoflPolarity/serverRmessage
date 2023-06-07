@@ -178,6 +178,7 @@ public class ThreadedServer {
         }
 
         private void sendNewMessage(String sender, String recipient, String message) {
+            databaseUtils.sendMessage(sender,recipient,message);
             synchronized (activeClientsLock) {
                 for (ClientHandler activeClient : activeClients) {
                     if (activeClient.getUsername().equals(recipient)) {
@@ -192,6 +193,7 @@ public class ThreadedServer {
                     if (serverAdr.length==1 || servers.get(i).getServerName().equals(ServName) || servers.get(i).getServerKey().equals(ServKey)) continue;
                     try {
                         Socket socket = new Socket(serverAdr[0], Integer.parseInt(serverAdr[2]));
+                        socket.setSoTimeout(250);
                         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                         ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
                         out.writeObject(new ServerMessage<>("FindUser", ServName, recipient, ServKey));
@@ -208,6 +210,7 @@ public class ThreadedServer {
                         System.out.println("No connect");
                     }
                 }
+
         }
 
         private void sendNewMessageImage(String sender, String recipient, ArrayList<byte[]> message) {
@@ -286,6 +289,7 @@ public class ThreadedServer {
                     return new Response<>("Search",bool);
                 }
                 case "Sync" -> {
+                    System.out.println("Sync" + " " + username);
                     ArrayList<Message> res = utils.getChats(request.getUsername());
                     return new Response<>("Sync",res);
                 }

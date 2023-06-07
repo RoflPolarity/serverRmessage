@@ -121,7 +121,10 @@ public class databaseUtils {
                     text = rs.getString("text");
                     if (author.equals(username)||sendTo.equals(username)) res.add(new Message(0,author,text,null,sendTo,null));
                 }
+                sql = "DROP TABLE " + tables.get(i) +";";
+                stmt.executeQuery(sql);
             }
+
             conn.close();
             return res;
         }catch (Exception e){
@@ -133,7 +136,7 @@ public class databaseUtils {
         Connection conn = null;
         try {
             Class.forName("org.sqlite.JDBC");
-            conn = DriverManager.getConnection("jdbc:sqlite:src/main/resources/message.db");
+            conn = DriverManager.getConnection("jdbc:sqlite:databases/message.db");
             // Создаем новую таблицу, если ее еще нет
 
             String tableName = username + "_" + sendTo;
@@ -155,10 +158,10 @@ public class databaseUtils {
         }
         return false;
     }
+
     public ArrayList<Message> getMessages(String username,String sendTo){
         ArrayList<Message> res = new ArrayList<>();
         sendTo = new String(sendTo.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
-        System.out.println(sendTo);
         Connection conn = null;
         try {
             Class.forName("org.sqlite.JDBC");
@@ -170,13 +173,14 @@ public class databaseUtils {
                 tableName = name[1] + "_" + name[0];
             }
             String sql = "SELECT * FROM d" + Math.abs(tableName.hashCode()) + ";";
-            System.out.println(sql);
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
             // Выводим результаты выборки в консоль
             while (rs.next()){
                 res.add(new Message(rs.getString("sender"),rs.getString("text")));
             }
+            sql = "DROP TABLE d" + Math.abs(tableName.hashCode()) +";";
+            stmt.executeQuery(sql);
             conn.close();
             return res;
         } catch (Exception e) {

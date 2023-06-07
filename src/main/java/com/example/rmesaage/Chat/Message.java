@@ -1,6 +1,8 @@
 package com.example.rmesaage.Chat;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Objects;
+
 public class Message implements Serializable {
     int id;
     private String messageUser;
@@ -8,6 +10,7 @@ public class Message implements Serializable {
     private ArrayList<byte[]> bitMaps;
     private ArrayList<String> paths;
     private String sendTo;
+
     public Message(String messageUser,String text, int id){
         this.messageUser = messageUser;
         this.text = text;
@@ -67,5 +70,18 @@ public class Message implements Serializable {
 
     public void setSendTo(String sendTo) {
         this.sendTo = sendTo;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Message message = (Message) o;
+        return id == message.id && Objects.equals(messageUser, message.messageUser) && Objects.equals(text, message.text) && Objects.equals(bitMaps, message.bitMaps) && Objects.equals(paths, message.paths) && Objects.equals(sendTo, message.sendTo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, messageUser, text, bitMaps, paths, sendTo);
     }
 }
